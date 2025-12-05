@@ -199,6 +199,42 @@ class TestTcrdist:
             results, np.array([[2, 0, self.alpha_cdist + self.beta_cdist]])
         )
 
+    df3 = pd.DataFrame(
+        columns=["TRAV", "CDR3A", "TRBV", "CDR3B"],
+        data=[
+            [
+                "TRAV21*01",
+                "CASLDSNYQLIW",
+                "TRBV11-2*01",
+                "CASSTGGETQYF",
+            ],
+            [
+                "TRAV420",
+                "CASLDSNYQLIW",
+                "TRBV11-2*01",
+                "CASSTGGETQYF",
+            ],
+        ],
+    )
+
+    def test_tcrdist_cross(self):
+        with pytest.warns(match="is not recognized as a valid V gene"):
+            results = nearest_neighbor_tcrdist(
+                self.df3, max_edits=2, max_tcrdist=30, chain="alpha"
+            )
+            assert results.size == 0
+
+        results = nearest_neighbor_tcrdist(
+            self.df3, max_edits=2, max_tcrdist=30, chain="beta"
+        )
+        assert np.array_equal(results, np.array([[1, 0, 0], [0, 1, 0]]))
+
+        with pytest.warns(match="is not recognized as a valid V gene"):
+            results = nearest_neighbor_tcrdist(
+                self.df3, max_edits=2, max_tcrdist=30, chain="both"
+            )
+            assert results.size == 0
+
 
 # symdel is the only algorithm supporting 2-seq mode
 def test_two_sequence():

@@ -690,20 +690,22 @@ def _vdists_lookup(df: pd.DataFrame, row_labels, col_labels):
     ridx = df.index.get_indexer(row_labels_imputed)
     cidx = df.columns.get_indexer(col_labels_imputed)
 
-    if (ridx == -1).any():
-        first_offending_idx = (ridx == -1).argmax()
-        raise ValueError(
-            f"{row_labels.iloc[first_offending_idx]} is not recognized as a valid V gene"
-        )
+    offending_ridcs = np.where(ridx == -1)[0]
+    offending_cidcs = np.where(cidx == -1)[0]
+    offending_idcs = np.unique(np.concatenate([offending_ridcs, offending_cidcs]))
 
-    if (cidx == -1).any():
-        first_offending_idx = (cidx == -1).argmax()
-        raise ValueError(
-            f"{col_labels.iloc[first_offending_idx]} is not recognized as a valid V gene"
-        )
+    for i in offending_ridcs:
+        warnings.warn(f"{row_labels.iloc[i]} is not recognized as a valid V gene")
+
+    for i in offending_cidcs:
+        warnings.warn(f"{col_labels.iloc[i]} is not recognized as a valid V gene")
 
     flat_index = ridx * len(df.columns) + cidx
-    return values.flat[flat_index]
+
+    results = values.flat[flat_index]
+    results[offending_idcs] = 999999
+
+    return results
 
 
 def nearest_neighbor_tcrdist(
