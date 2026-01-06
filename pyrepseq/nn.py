@@ -1,4 +1,4 @@
-from typing import Literal, List, Tuple
+from typing import Literal, List, Tuple, DataFrame
 from scipy.spatial import KDTree
 import numpy as np
 import pandas as pd
@@ -35,6 +35,13 @@ except ImportError:
         ImportWarning,
     )
 
+try:
+    from sceptr_publication_analyses import CachedRepresentationModel, hugging_face_lms
+except ImportError:
+    warnings.warn(
+        "optional dependency sceptr_publication_analyses not installed (PLM neighbor search not supported)",
+        ImportWarning,
+    )
 
 logger = logging.getLogger(__file__)
 
@@ -884,40 +891,36 @@ def nearest_neighbor_tcrdist(
 
     return triplets_arr[triplets_arr[:, 2] <= max_tcrdist]
 
-
-def calculate_sceptrdist_sparse(edges, tcr_data_array):
+def calculate_torchdist_sparse(edges: List[Tuple], df: DataFrame, modelinst)-> np.ndarray:
     """
     Efficiently calculate sparse pairwise distances between vector representations of TCRs.
     """
     # Allocate an array to store distances
-    sceptrdist = np.empty(len(edges), dtype=np.float32)
+    dist = np.empty(len(edges), dtype= np.float32)
+
     # Loop over edges and calculate distances
     for i in range(len(edges)):
         tcr1_idx, tcr2_idx = edges[i]
-        # Extract TCR vectors from tcr_data_array (NumPy 2D array)
-        tcr1_vector = tcr_data_array[tcr1_idx]
-        tcr2_vector = tcr_data_array[tcr2_idx]
-        # Compute the Euclidean distance
-        dist = np.sqrt(np.sum((tcr1_vector - tcr2_vector) ** 2))
-        # Store the distance in the result array
-        sceptrdist[i] = dist
-    return sceptrdist
+        # Calculate distance between edge TCRs
+        dist[i] = modelinst.calc_cdist_matrix(df[tcr1_idx:tcr1_idx+1], df[tcr2_idx:tcr2_idx+1]).item()
+    return dist
 
 
-def nearest_neighbor_sceptrdist(
-    df, chain="beta", max_edits=2, max_sceptrdist=1.0, **kwargs
+def nearest_neighbor_generaltorchdist(
+    df, chain="beta", max_edits=2, max_torchdist=3.0, modelinst =  CachedRepresentationModel(
+             hugging_face_lms.ProtBertCDR3(), position_wise_distance=False) , **kwargs
 ):
     """
-    List all neighboring TCR sequences efficiently within a given edit and SCEPTR radius.
+    List all neighboring TCR sequences efficiently within a given edit and model-calculated radius.
 
-    [Requires optional dependency sceptr]
 
     Parameters
     ----------
     chain: 'alpha', 'beta'
-        chain to use for edit distance prefiltering
-    max_edits : only return neighbors up to <= this edit distance
-    max_sceptrdist : only return neighbor up to <= this TCR distance
+        chain to use for edit distance prefiltering.
+    max_edits : only return neighbors up to <= this edit distance.
+    max_torchdist : only return neighbor up to <= this TCR model-calculated distance.
+    modelinst: model instance to use for torch representations. Should be a subclass of CachedRepresentationModel.
     **kwargs : passed on to nearest_neighbor function
 
     Returns
@@ -927,13 +930,17 @@ def nearest_neighbor_sceptrdist(
     """
     chain_letter = chain[0].upper()
     seqs = list(df[f"CDR3{chain_letter}"])
+
     neighbors = nearest_neighbor(seqs, max_edits=max_edits, **kwargs)
     neighbors_arr = np.array(neighbors, dtype=object)
+    #I THINK TYPE ERROR MAY BE WRONG TYPE OF ERROR BUT LEAVING IT FOR NOW
+    if len(neighbors_arr) == 0:
+        raise TypeError("No neighbors found: none of the TCRs are within the specified edit distance")
+    
     edges = neighbors_arr[:, :2]
-    tcr_data_array = sceptr.calc_vector_representations(df)
-    sceptrdist = calculate_sceptrdist_sparse(edges, tcr_data_array)
-    neighbors_arr[:, 2] = sceptrdist
-    return neighbors_arr[neighbors_arr[:, 2] <= max_sceptrdist]
+    torchdist = calculate_torchdist_sparse(edges, df, modelinst)
+    neighbors_arr[:, 2] = torchdist
+    return neighbors_arr[neighbors_arr[:, 2] <= max_torchdist]
 
 
 # ===================================
