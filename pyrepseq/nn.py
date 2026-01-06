@@ -1,4 +1,5 @@
-from typing import Literal, List, Tuple, DataFrame
+from typing import Literal, List, Tuple
+from pandas import DataFrame
 from scipy.spatial import KDTree
 import numpy as np
 import pandas as pd
