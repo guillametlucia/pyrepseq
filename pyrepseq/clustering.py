@@ -5,12 +5,13 @@ import scipy
 import igraph
 import sklearn.cluster
 
-def graph_clustering(adjacency_matrix, nodes, clustering='cc', **kwargs):
+def graph_clustering(adjacency_matrix, nodes, remove_singletons=True, clustering='cc', **kwargs):
     """
     Identify clusters in an unweighted sequence adjacency graph.
 
     adjacency_matrix: array_like of (i, j, dist)
     nodes: labels for the nodes in the graph
+    remove_singletons: do not return singleton clusters (default = True)
     clustering: choice of clustering algorithm
                 'cc' or one of 'fastgreedy', 'multilevel', 'leiden'
                 see igraph.community_* for documentation of these clustering algorithms
@@ -43,7 +44,8 @@ def graph_clustering(adjacency_matrix, nodes, clustering='cc', **kwargs):
                 pass
         cluster_df = pd.DataFrame(dict(node=nodes, cluster=components.membership))
 
-    cluster_counts = cluster_df['cluster'].value_counts()
-    expanded_cluster = set(cluster_counts[cluster_counts>1].index)
-    cluster_df = cluster_df[cluster_df['cluster'].isin(expanded_cluster)]
+    if remove_singletons:
+        cluster_counts = cluster_df['cluster'].value_counts()
+        expanded_cluster = set(cluster_counts[cluster_counts>1].index)
+        cluster_df = cluster_df[cluster_df['cluster'].isin(expanded_cluster)]
     return cluster_df
