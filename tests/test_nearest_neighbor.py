@@ -217,7 +217,7 @@ class TestTcrdist:
         ],
     )
 
-    def test_tcrdist_cross(self):
+    def test_tcrdist_cross_bad_v_genes(self):
         with pytest.warns(match="is not recognized as a valid V gene"):
             results = nearest_neighbor_tcrdist(
                 self.df3, max_edits=2, max_tcrdist=30, chain="alpha"
