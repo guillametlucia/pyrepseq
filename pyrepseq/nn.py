@@ -680,30 +680,54 @@ def nearest_neighbor(
     )
 
 
-def _vdists_lookup(df: pd.DataFrame, row_labels, col_labels):
+def _vdists_lookup(dist_reference: pd.DataFrame, lhs: pd.Series, rhs: pd.Series):
+    """
+    Parameters
+    ----------
+    dist_reference : DataFrame
+        Distance matrix loaded as a Pandas DataFrame. The index and column
+        names of the matrix are the symdols of valid TR V genes.
+
+    lhs : Series
+        Series of TR gene symbols, with length L. Symbols only specified up to
+        the gene level will have the allele designator "*01" imputed.
+
+    rhs : Series
+        Series of TR gene symbols, with length L. Symbols only specified up to
+        the gene level will have the allele designator "*01" imputed.
+
+    Returns
+    -------
+    dists : NDArray
+        1D array of length L. dists[i] = tcrdist(lhs[i], rhs[i]). If either
+        lhs[i] or rhs[i] are unrecogized V gene names not found in
+        precomputed_dists, then dists[i] == 999999.
+    """
     # Add "*01" to the end of a V gene symbol if no allele specifier present
-    row_labels_imputed = row_labels.str.replace(r"^([-/\w]+?)$", r"\1*01", regex=True)
-    col_labels_imputed = col_labels.str.replace(r"^([-/\w]+?)$", r"\1*01", regex=True)
+    lhs_imputed = lhs.str.replace(r"^([-/\w]+?)$", r"\1*01", regex=True)
+    rhs_imputed = rhs.str.replace(r"^([-/\w]+?)$", r"\1*01", regex=True)
 
-    values = df.values
+    values = dist_reference.values
 
-    ridx = df.index.get_indexer(row_labels_imputed)
-    cidx = df.columns.get_indexer(col_labels_imputed)
+    lidx = dist_reference.index.get_indexer(lhs_imputed)
+    ridx = dist_reference.columns.get_indexer(rhs_imputed)
 
-    if (ridx == -1).any():
-        first_offending_idx = (ridx == -1).argmax()
-        raise ValueError(
-            f"{row_labels.iloc[first_offending_idx]} is not recognized as a valid V gene"
-        )
+    offending_lidcs = np.where(lidx == -1)[0]
+    offending_ridcs = np.where(ridx == -1)[0]
+    offending_idcs = np.unique(np.concatenate([offending_lidcs, offending_ridcs]))
 
-    if (cidx == -1).any():
-        first_offending_idx = (cidx == -1).argmax()
-        raise ValueError(
-            f"{col_labels.iloc[first_offending_idx]} is not recognized as a valid V gene"
-        )
+    for i in offending_lidcs:
+        warnings.warn(f"{lhs.iloc[i]} is not recognized as a valid V gene")
 
-    flat_index = ridx * len(df.columns) + cidx
-    return values.flat[flat_index]
+    for i in offending_ridcs:
+        warnings.warn(f"{rhs.iloc[i]} is not recognized as a valid V gene")
+
+    flat_index = lidx * len(dist_reference.columns) + ridx
+
+    results = values.flat[flat_index]
+    results[offending_idcs] = 999999
+
+    return results
 
 
 def nearest_neighbor_tcrdist(
