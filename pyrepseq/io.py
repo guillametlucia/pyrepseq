@@ -197,15 +197,17 @@ def standardize_dataframe(
         for chain in ("A", "B"):
             cdr3 = f"CDR3{chain}"
             if cdr3 in df_standardized.columns:
-                df_standardized[cdr3] = df_standardized[cdr3].map(
-                    lambda x: None
-                    if pd.isna(x)
-                    else tt.junction.standardize(
-                        seq=x,
-                        strict=strict_cdr3_standardization,
-                        suppress_warnings=suppress_warnings,
-                    )
-                )
+                df_standardized[cdr3] =  df_standardized.apply(
+                lambda row: None
+                if pd.isna(row[cdr3])
+                else tt.junction.standardize(
+                    seq=row[cdr3],
+                    j_symbol=None if pd.isna(row[f'TR{chain}J']) else row[f'TR{chain}J'],
+                    strict=strict_cdr3_standardization,
+                    suppress_warnings=suppress_warnings,
+                ),
+                axis=1,
+            )
 
             for gene in ("V", "J"):
                 col = f"TR{chain}{gene}"
